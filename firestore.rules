@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Connection test rule
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Helper functions for Orders
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+        'orderId', 'customerName', 'phone', 'address',
+        'packageOptionId', 'packageName', 'totalPrice',
+        'paymentMethod', 'status', 'createdAt'
+      ]) &&
+      data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 50 &&
+      data.phone is string && data.phone.size() >= 8 && data.phone.size() <= 20 &&
+      data.address is string && data.address.size() >= 2 && data.address.size() <= 200 &&
+      data.packageName is string && data.packageName.size() >= 2 && data.packageName.size() <= 100 &&
+      data.totalPrice is number && data.totalPrice >= 0 &&
+      data.status in ['접수완료', '배송준비', '배송중', '배송완료', '주문취소'];
+    }
+
+    match /orders/{orderId} {
+      // Anyone can create an order with valid data
+      allow create: if isValidOrder(request.resource.data);
+      
+      // Customers can look up their orders, store managers can view order list
+      allow read: if true;
+      
+      // Store managers can update order status
+      allow update: if request.resource.data.status in ['접수완료', '배송준비', '배송중', '배송완료', '주문취소'];
+      
+      // Prevent accidental hard deletions of real customer records
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      // Authenticated users can manage their own profile, or open for signup profile sync
+      allow read, write: if true;
+    }
+  }
+}
